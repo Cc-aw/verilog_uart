@@ -3,14 +3,14 @@ module uart_tx #(
     parameter CLOCK_FREQ = 50_000_000,
     parameter BAUD_RATE  = 9600
 ) (
-    input            clk,
-    input            rst_n,
+    input             clk,
+    input             rst_n,
     //
-    input      [7:0] i_uart_data,
-    input            i_uart_en,
+    input       [7:0] i_uart_data,
+    input             i_uart_en,
     //
-    output reg       o_uart_tx,
-    output reg       o_uart_done
+    output reg        o_uart_tx,
+    output wire       o_uart_busy
 );
 
     reg [7:0] r_uart_data;
@@ -103,14 +103,16 @@ module uart_tx #(
         end
     end
 
-    wire w_uart_done;
-    assign w_uart_done = (bit_cnt == 9) && (div_cnt == MCNT_DIV);
-
-    always @(posedge clk) begin
-        o_uart_tx   <= r_uart_tx;
-        o_uart_done <= w_uart_done;
+    always @(posedge clk or negedge rst_n) begin
+        if (~rst_n) begin
+            o_uart_tx <= 1;
+        end
+        else begin
+            o_uart_tx <= r_uart_tx;
+        end
     end
 
+    assign o_uart_busy = en;
 
 
 

@@ -7,39 +7,53 @@ module tb_uart_tx;
     reg [7:0] i_uart_data;
     reg i_uart_en;
     wire o_uart_tx;
-    wire o_uart_done;
+    wire o_uart_busy;
 
     always #10 clk = ~clk;
 
     initial begin
         rst_n = 0;
         i_uart_en = 0;
-        i_uart_data = 8'b1010_0101;
         #201;
         rst_n = 1;
+
+        //第一个字节
+        i_uart_data = 8'b1010_0101;
         i_uart_en = 1;
         #20;
         i_uart_en = 0;
-        wait(o_uart_done);
+        #200;//等待busy信号拉高
+
+        wait(~o_uart_busy);
         #200_000;
+
+        //第二个字节
         i_uart_en = 1;
         i_uart_data = 8'b0110_0110;
         #20;
         i_uart_en = 0;
-        wait(o_uart_done);
+        #200;//等待busy信号拉高
+
+        wait(~o_uart_busy);
         #200_000;
+
         $finish;
     end
 
-    uart_tx u_uart_tx (
+    uart_tx #(
+      .BAUD_RATE(9600)
+    )
+    u_uart_tx 
+    (
         .clk        (clk),
         .rst_n      (rst_n),
         .i_uart_data(i_uart_data),
         .i_uart_en  (i_uart_en),
         .o_uart_tx  (o_uart_tx),
-        .o_uart_done(o_uart_done)
+        .o_uart_busy(o_uart_busy)
     );
 
+   
 
 
 
