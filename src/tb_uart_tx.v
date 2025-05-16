@@ -22,17 +22,17 @@ module tb_uart_tx;
         i_uart_en = 1;
         #20;
         i_uart_en = 0;
-        #200;//等待busy信号拉高
+        #200_000;//等待busy信号拉高
 
         wait(~o_uart_busy);
-        #200_000;
+        #200_001;
 
         //第二个字节
         i_uart_en = 1;
         i_uart_data = 8'b0110_0110;
         #20;
         i_uart_en = 0;
-        #200;//等待busy信号拉高
+        #200_000;//等待busy信号拉高
 
         wait(~o_uart_busy);
         #200_000;
@@ -41,7 +41,7 @@ module tb_uart_tx;
     end
 
     uart_tx #(
-      .BAUD_RATE(9600)
+      .BAUD_RATE(115200)
     )
     u_uart_tx 
     (
@@ -52,10 +52,6 @@ module tb_uart_tx;
         .o_uart_tx  (o_uart_tx),
         .o_uart_busy(o_uart_busy)
     );
-
-   
-
-
 
     initial begin
         $dumpfile(`VCD_PATH);

@@ -1,119 +1,118 @@
-// UART.v
 module uart_tx #(
     parameter CLOCK_FREQ = 50_000_000,
     parameter BAUD_RATE  = 9600
 ) (
-    input             clk,
-    input             rst_n,
+    input            clk,
+    input            rst_n,
     //
-    input       [7:0] i_uart_data,
-    input             i_uart_en,
+    input      [7:0] i_uart_data,
+    input            i_uart_en,
     //
-    output reg        o_uart_tx,
-    output wire       o_uart_busy
+    output reg       o_uart_tx,
+    output reg       o_uart_busy
 );
 
-    reg [7:0] r_uart_data;
-    reg       r_uart_en;
+    reg [ 7:0] data_ff;
+    reg [12:0] tx_cnt;
+    reg [ 2:0] bit_addr;
+    parameter MCNT_TX = CLOCK_FREQ / BAUD_RATE - 1;
 
-    always @(posedge clk) begin
-        r_uart_en <= i_uart_en;
-    end
-
-    always @(posedge clk or negedge rst_n) begin
-        if (~rst_n) begin
-            r_uart_data <= 8'd0;
-        end
-        else if (r_uart_en && ~en) begin
-            r_uart_data <= i_uart_data;
-        end
-    end
-
-    parameter MCNT_DIV = CLOCK_FREQ / BAUD_RATE - 1;
-    reg        en;
-    reg [12:0] div_cnt;
+    // 上升沿检测：i_uart_en_d 保存上一周期的 i_uart_en
+    reg i_uart_en_d;
+    reg en;
 
     always @(posedge clk or negedge rst_n) begin
         if (~rst_n) begin
-            div_cnt <= 0;
-        end
-        else if (div_cnt == MCNT_DIV) begin
-            div_cnt <= 0;
+            i_uart_en_d <= 0;
+            en          <= 0;
         end
         else begin
-            div_cnt <= div_cnt + 1;
+            // 检测到 i_uart_en 从 0 -> 1 就拉高 en_pulse 一拍
+            en          <= i_uart_en & ~i_uart_en_d;
+            // 更新延迟寄存器
+            i_uart_en_d <= i_uart_en;
         end
     end
 
-    reg [3:0] bit_cnt;
+
+    localparam [1:0] IDLE = 2'b00;
+    localparam [1:0] START = 2'b01;
+    localparam [1:0] TX = 2'b10;
+    localparam [1:0] STOP = 2'b11;
+
+    reg [1:0] state = IDLE;  //FSM
+
+    ////------------------------------
+    // FSM //
+    ////------------------------------
+
     always @(posedge clk or negedge rst_n) begin
         if (~rst_n) begin
-            bit_cnt <= 0;
-        end
-        else if ((div_cnt == MCNT_DIV) && en) begin
-            if (bit_cnt == 9) begin
-                bit_cnt <= 0;
-            end
-            else begin
-                bit_cnt <= bit_cnt + 1;
-            end
+            state       <= IDLE;
+            o_uart_tx   <= 1;
+            o_uart_busy <= 0;
+            bit_addr    <= 0;
+            tx_cnt      <= 0;
+            data_ff     <= 0;
         end
         else begin
-            bit_cnt <= bit_cnt;
-        end
-    end
+            case (state)
+                IDLE: begin
+                    if (en) begin
+                        data_ff     <= i_uart_data;
+                        state       <= START;
+                        o_uart_busy <= 1;
+                        tx_cnt      <= 0;
+                        bit_addr    <= 0;
+                    end
+                    else begin
+                        o_uart_tx   <= 1;
+                        o_uart_busy <= 0;
+                    end
+                end
 
-    always @(posedge clk or negedge rst_n) begin
-        if (~rst_n) begin
-            en <= 0;
-        end
-        else if (r_uart_en && ~en) begin
-            en <= 1;
-        end
-        else if ((div_cnt == MCNT_DIV) && bit_cnt == 9) begin
-            en <= 0;
-        end
-        else begin
-            en <= en;
-        end
-    end
+                //(1) 起始位 0
+                START: begin
+                    o_uart_tx <= 0;
+                    if (tx_cnt == MCNT_TX) begin
+                        tx_cnt <= 0;
+                        state  <= TX;
+                    end
+                    else begin
+                        tx_cnt <= tx_cnt + 1;
+                    end
+                end
 
-    reg r_uart_tx;
-    always @(posedge clk or negedge rst_n) begin
-        if (~rst_n) begin
-            r_uart_tx <= 1;
-        end
-        else if (en) begin
-            case (bit_cnt)
-                0:       r_uart_tx <= 0;
-                1:       r_uart_tx <= r_uart_data[0];
-                2:       r_uart_tx <= r_uart_data[1];
-                3:       r_uart_tx <= r_uart_data[2];
-                4:       r_uart_tx <= r_uart_data[3];
-                5:       r_uart_tx <= r_uart_data[4];
-                6:       r_uart_tx <= r_uart_data[5];
-                7:       r_uart_tx <= r_uart_data[6];
-                8:       r_uart_tx <= r_uart_data[7];
-                9:       r_uart_tx <= 1;
-                default: r_uart_tx <= r_uart_tx;
+                //(2) 8 bit数据 低字节优先
+                TX: begin
+                    o_uart_tx <= data_ff[bit_addr];
+                    if (tx_cnt == MCNT_TX) begin
+                        tx_cnt <= 0;
+                        if (bit_addr == 7) begin
+                            bit_addr <= 0;
+                            state    <= STOP;
+                        end
+                        else begin
+                            bit_addr <= bit_addr + 1;
+                        end
+                    end
+                    else begin
+                        tx_cnt <= tx_cnt + 1;
+                    end
+                end
+
+                //(3) 停止位 1
+                STOP: begin
+                    o_uart_tx <= 1;
+                    if (tx_cnt == MCNT_TX) begin
+                        state  <= IDLE;
+                        tx_cnt <= 0;
+                    end
+                    else begin
+                        tx_cnt <= tx_cnt + 1;
+                    end
+                end
             endcase
         end
-        else begin
-            r_uart_tx <= 1;
-        end
     end
-
-    always @(posedge clk or negedge rst_n) begin
-        if (~rst_n) begin
-            o_uart_tx <= 1;
-        end
-        else begin
-            o_uart_tx <= r_uart_tx;
-        end
-    end
-
-    assign o_uart_busy = en;
-
-
-
 endmodule
