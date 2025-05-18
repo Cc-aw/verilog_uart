@@ -1,6 +1,6 @@
 // UART_tb.v
 `timescale 1ns / 1ps
-`define VCD_PATH "build/wave.vcd"
+`define VCD_PATH "build/tx_wave.vcd"
 module tb_uart_tx;
     reg clk = 1;
     reg rst_n;
@@ -29,7 +29,7 @@ module tb_uart_tx;
 
         //第二个字节
         i_uart_en = 1;
-        i_uart_data = 8'b0110_0110;
+        i_uart_data = 8'b0110_0001;
         #20;
         i_uart_en = 0;
         #200_000;//等待busy信号拉高
@@ -41,7 +41,8 @@ module tb_uart_tx;
     end
 
     uart_tx #(
-      .BAUD_RATE(115200)
+      .BAUD_RATE(115200),
+      .EN_PARITY(01)
     )
     u_uart_tx 
     (
