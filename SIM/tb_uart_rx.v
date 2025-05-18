@@ -9,6 +9,7 @@ module tb_uart_rx;
     parameter BAUD_RATE = 9600;
     parameter CLK_PERIOD = 20;  // 50MHz -> 20ns
     parameter BAUD_PERIOD = 1_000_000_000 / BAUD_RATE;  // ns
+    parameter EN_PARITY  = 11 ;
 
     // DUT 接口信号
     reg        clk;
@@ -20,7 +21,8 @@ module tb_uart_rx;
     // 实例化 DUT
     uart_rx #(
         .CLOCK_FREQ(CLOCK_FREQ),
-        .BAUD_RATE (BAUD_RATE)
+        .BAUD_RATE (BAUD_RATE),
+        .EN_PARITY (EN_PARITY)
     ) uut (
         .clk         (clk),
         .rst_n       (rst_n),
@@ -46,6 +48,10 @@ module tb_uart_rx;
                 #(BAUD_PERIOD);
             end
 
+            //校验位 ODD:1, EVEN:0
+            i_uart_rx = (EN_PARITY == 11) ? ~(^data) : (^data);
+            $display("校验位为 %b", i_uart_rx);
+            #(BAUD_PERIOD);
             // 停止位（高电平）
             i_uart_rx = 1;
             #(BAUD_PERIOD);
@@ -69,16 +75,16 @@ module tb_uart_rx;
         send_uart_byte(8'hA5);
 
         // 等待一段时间，观察输出
-        #(BAUD_PERIOD * 1);
+        #(BAUD_PERIOD * 3);
         if (o_uart_data == 8'hA5) $display("✅ Test passed: Received 0x%02X", o_uart_data);
         else $display("❌ Test failed: Received 0x%02X", o_uart_data);
 
-        // 发送第2个字节 8'hA5 = 8'b00001111
-        send_uart_byte(8'h0f);
+        // 发送第2个字节 8'b00001110
+        send_uart_byte(8'b00001110);
 
         // 等待一段时间，观察输出
-        #(BAUD_PERIOD * 1);
-        if (o_uart_data == 8'h0f) $display("✅ Test passed: Received 0x%02X", o_uart_data);
+        #(BAUD_PERIOD * 3);
+        if (o_uart_data == 8'b00001110) $display("✅ Test passed: Received 0x%02X", o_uart_data);
         else $display("❌ Test failed: Received 0x%02X", o_uart_data);
 
         $finish;

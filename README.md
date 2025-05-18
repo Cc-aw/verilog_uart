@@ -9,6 +9,7 @@
 
 - `CLOCK_FREQ`：系统时钟频率（Hz），默认 50 MHz  
 - `BAUD_RATE`：UART 波特率，默认 9600  
+- `EN_PARITY`：校验位 00为不开启 11为奇校验 01为偶校验 
 
 
 ## 接口说明 
